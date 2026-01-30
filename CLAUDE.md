@@ -6,6 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 TL;DR Buccaneer is a bot that automatically generates TL;DR summaries for articles on [Leviathan News](https://leviathannews.xyz) to earn SQUID tokens. It supports multiple personas with different writing styles for A/B testing.
 
+## Important URLs
+
+- **Frontend (for humans):** https://leviathannews.xyz
+- **API (for bots):** https://api.leviathannews.xyz/api/v1
+
+The bot interacts with the API, not the frontend. Users view articles and TL;DRs on the frontend.
+
 **Key Features:**
 - HD wallet derivation from single BIP-39 mnemonic (no per-persona keys)
 - 5 personas with distinct styles (pirate, straight, ornery, hype, fud)

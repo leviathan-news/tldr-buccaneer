@@ -93,7 +93,7 @@ class Config:
             dice_weights = DEFAULT_DICE_WEIGHTS
 
         config = cls(
-            api_base_url=os.getenv("API_BASE_URL", "https://leviathannews.xyz/api/v1"),
+            api_base_url=os.getenv("API_BASE_URL", "https://api.leviathannews.xyz/api/v1"),
             utm_source=os.getenv("UTM_SOURCE", "tldr-buccaneer"),
             deepseek_api_key=os.getenv("DEEPSEEK_API_KEY", ""),
             deepseek_model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
