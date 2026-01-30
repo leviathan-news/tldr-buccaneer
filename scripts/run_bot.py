@@ -64,7 +64,7 @@ def run_single_bot(config: Config, once: bool = False):
         bot.run_forever()
 
 
-def run_fleet(config: Config, once: bool = False, show_stats: bool = False):
+def run_fleet(config: Config, once: bool = False, show_stats: bool = False, show_recent: bool = False):
     """Run in fleet mode with multiple personas."""
     # Create coordinator with dice roll config
     # The coordinator will handle HD wallet derivation from the mnemonic
@@ -75,6 +75,10 @@ def run_fleet(config: Config, once: bool = False, show_stats: bool = False):
     for persona_config in config.personas:
         coordinator.add_persona(persona_id=persona_config.id)
         # No need to pass wallet credentials - they're derived from MNEMONIC!
+
+    if show_recent:
+        coordinator.print_recent()
+        return
 
     if show_stats:
         coordinator.print_leaderboard()
@@ -130,6 +134,11 @@ def main():
         action="store_true",
         help="Show persona leaderboard and exit (fleet mode only)",
     )
+    parser.add_argument(
+        "--recent",
+        action="store_true",
+        help="Show recently posted TL;DRs with news IDs (fleet mode only)",
+    )
 
     args = parser.parse_args()
 
@@ -155,10 +164,10 @@ def main():
         print_banner(fleet_mode)
 
         if fleet_mode:
-            run_fleet(config, once=args.once, show_stats=args.stats)
+            run_fleet(config, once=args.once, show_stats=args.stats, show_recent=args.recent)
         else:
-            if args.stats:
-                print("--stats is only available in fleet mode")
+            if args.stats or args.recent:
+                print("--stats and --recent are only available in fleet mode")
                 sys.exit(1)
             run_single_bot(config, once=args.once)
 
