@@ -1,0 +1,19 @@
+# Core dependencies
+requests>=2.28.0
+python-dotenv>=1.0.0
+
+# Ethereum wallet authentication
+eth-account>=0.8.0
+web3>=6.0.0
+
+# AI summarization (Deepseek uses OpenAI-compatible API)
+openai>=1.0.0
+
+# Content extraction
+beautifulsoup4>=4.12.0
+
+# Optional: For better HTML parsing
+lxml>=4.9.0
+
+# Development/Testing
+pytest>=7.0.0
