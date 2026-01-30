@@ -162,24 +162,57 @@ class LeviathanAPIClient:
 
     def get_pending_articles(self, limit: int | None = None) -> list[dict[str, Any]]:
         """
-        Fetch pending (submitted) articles that need TL;DRs.
+        Fetch articles that need TL;DRs - both approved and submitted, newest first.
+
+        Prioritizes:
+        1. Recently approved (published) articles - these have active readers
+        2. Recently submitted articles - get in early before approval
 
         Args:
             limit: Maximum number of articles to fetch
 
         Returns:
-            List of article data dictionaries
+            List of article data dictionaries, sorted by newest first
         """
-        params = {
-            "status": "submitted",
-            "sort_type": "new",
-            "per_page": limit or self.config.max_articles_per_run,
-        }
+        per_page = limit or self.config.max_articles_per_run
+        all_articles = []
 
-        data = self._request("GET", "/news/", params=params)
-        articles = data.get("results", [])
+        # Fetch approved (published) articles - these have readers
+        try:
+            approved_data = self._request("GET", "/news/", params={
+                "status": "approved",
+                "sort_type": "new",
+                "per_page": per_page,
+            })
+            all_articles.extend(approved_data.get("results", []))
+            logger.debug(f"Found {len(approved_data.get('results', []))} approved articles")
+        except Exception as e:
+            logger.warning(f"Failed to fetch approved articles: {e}")
 
-        logger.info(f"Found {len(articles)} pending articles")
+        # Fetch submitted (pending) articles - be first to comment
+        try:
+            submitted_data = self._request("GET", "/news/", params={
+                "status": "submitted",
+                "sort_type": "new",
+                "per_page": per_page // 2,  # Fewer submitted, focus on approved
+            })
+            all_articles.extend(submitted_data.get("results", []))
+            logger.debug(f"Found {len(submitted_data.get('results', []))} submitted articles")
+        except Exception as e:
+            logger.warning(f"Failed to fetch submitted articles: {e}")
+
+        # Sort all by date_created (newest first) and dedupe
+        seen_ids = set()
+        unique_articles = []
+        for article in sorted(all_articles, key=lambda x: x.get("date_created", ""), reverse=True):
+            if article.get("id") not in seen_ids:
+                seen_ids.add(article.get("id"))
+                unique_articles.append(article)
+
+        # Limit to requested amount
+        articles = unique_articles[:per_page]
+
+        logger.info(f"Found {len(articles)} articles (approved + submitted, newest first)")
         return articles
 
     def get_article(self, article_id: int) -> dict[str, Any]:
@@ -230,6 +263,44 @@ class LeviathanAPIClient:
         """
         top_tldr = article.get("top_tldr")
         return top_tldr is not None
+
+    def get_article_yaps(self, article_id: int) -> list[dict[str, Any]]:
+        """
+        Fetch all yaps (comments) on an article.
+
+        Args:
+            article_id: The article ID
+
+        Returns:
+            List of yap data dictionaries
+        """
+        try:
+            data = self._request("GET", f"/news/{article_id}/list_yaps", auth_required=False)
+            return data if isinstance(data, list) else data.get("results", [])
+        except APIError as e:
+            logger.warning(f"Failed to fetch yaps for article {article_id}: {e}")
+            return []
+
+    def count_bot_comments(self, article_id: int, wallet_addresses: list[str]) -> int:
+        """
+        Count how many comments from our wallets exist on an article.
+
+        Args:
+            article_id: The article ID
+            wallet_addresses: List of our wallet addresses (lowercase)
+
+        Returns:
+            Number of comments from our wallets
+        """
+        yaps = self.get_article_yaps(article_id)
+        wallet_set = {addr.lower() for addr in wallet_addresses}
+        count = 0
+        for yap in yaps:
+            user = yap.get("user", {})
+            yap_address = user.get("ethereum_address", "").lower()
+            if yap_address in wallet_set:
+                count += 1
+        return count
 
     @classmethod
     def from_config(cls, config: Config) -> "LeviathanAPIClient":

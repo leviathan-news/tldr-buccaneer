@@ -89,6 +89,7 @@ MNEMONIC="twelve or twenty four word seed phrase"
 DEEPSEEK_API_KEY=your_key
 FLEET_MODE=true
 # Optional: DICE_WEIGHTS=0.25,0.40,0.25,0.10
+# Optional: MAX_BOT_COMMENTS_PER_ARTICLE=2  # Limit total bot comments per article
 ```
 
 ### src/personas_config.py (safe to commit)

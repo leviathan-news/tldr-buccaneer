@@ -116,23 +116,36 @@ Please provide a concise TL;DR summary (1-2 sentences) based on the headline."""
             logger.error(f"[{self.persona.id}] Failed to generate TL;DR: {e}")
             return None
 
-    def post_tldr(self, article_id: int, tldr: str) -> bool:
-        """Post a TL;DR for the given article."""
+    def post_tldr(self, article_id: int, tldr: str, headline: str = "") -> dict | None:
+        """
+        Post a TL;DR for the given article.
+
+        Returns:
+            Dict with posted yap info on success, None on failure
+        """
         try:
-            self.api_client.post_yap(
+            result = self.api_client.post_yap(
                 article_id=article_id,
                 text=tldr,
                 tags=["tldr"],
             )
             self.persona.tldrs_posted += 1
+
+            # Print clear output for easy querying
+            print(f"POSTED: news_id={article_id} persona={self.persona.id} wallet={self.persona.wallet_address[:10]}...")
+            print(f"  Headline: {headline[:60]}...")
+            print(f"  TL;DR: {tldr[:80]}...")
+            print(f"  URL: https://leviathannews.xyz/news/{article_id}")
+            print()
+
             logger.info(f"[{self.persona.id}] Posted TL;DR for article {article_id}")
-            return True
+            return {"article_id": article_id, "persona": self.persona.id, "tldr": tldr}
         except APIError as e:
             if "Duplicate yap" in str(e):
                 logger.warning(f"[{self.persona.id}] Duplicate TL;DR for article {article_id}")
             else:
                 logger.error(f"[{self.persona.id}] Failed to post TL;DR: {e}")
-            return False
+            return None
 
 
 @dataclass
@@ -163,6 +176,7 @@ class FleetCoordinator:
         "total_dice_rolls": 0,
         "roll_distribution": {0: 0, 1: 0, 2: 0, 3: 0},
         "persona_stats": {},
+        "posted_tldrs": [],  # Recent posted TL;DRs for easy lookup
         "last_run": None,
     })
 
@@ -226,9 +240,13 @@ class FleetCoordinator:
             return available
         return random.sample(available, count)
 
-    def process_article(self, article: dict[str, Any]) -> int:
+    def process_article(self, article: dict[str, Any], max_posts: int | None = None) -> int:
         """
         Process a single article - dice roll and post TL;DRs.
+
+        Args:
+            article: Article data dictionary
+            max_posts: Maximum posts allowed (limits dice roll result)
 
         Returns:
             Number of TL;DRs posted
@@ -246,9 +264,16 @@ class FleetCoordinator:
         # Roll the dice!
         num_tldrs = self.dice_config.roll()
         self._stats["total_dice_rolls"] += 1
-        self._stats["roll_distribution"][num_tldrs] += 1
+        # Handle both string and int keys (JSON loads as strings)
+        roll_key = str(num_tldrs) if str(num_tldrs) in self._stats["roll_distribution"] else num_tldrs
+        self._stats["roll_distribution"][roll_key] = self._stats["roll_distribution"].get(roll_key, 0) + 1
 
-        logger.info(f"Article {article_id}: Rolled {num_tldrs} TL;DRs - '{headline[:40]}...'")
+        # Respect max_posts limit (from cross-persona check)
+        if max_posts is not None and num_tldrs > max_posts:
+            logger.info(f"Article {article_id}: Rolled {num_tldrs} but capped to {max_posts} (max per article)")
+            num_tldrs = max_posts
+
+        logger.info(f"Article {article_id}: Posting {num_tldrs} TL;DRs - '{headline[:40]}...'")
 
         if num_tldrs == 0:
             self._processed_articles.add(article_id)
@@ -269,10 +294,24 @@ class FleetCoordinator:
                 continue
 
             # Post the TL;DR
-            if bot.post_tldr(article_id, tldr):
+            result = bot.post_tldr(article_id, tldr, headline=headline)
+            if result:
                 posted_count += 1
                 self._stats["persona_stats"][persona_id]["tldrs_posted"] += 1
                 self._stats["persona_stats"][persona_id]["articles_processed"] += 1
+
+                # Track posted TL;DR for easy lookup
+                self._stats.setdefault("posted_tldrs", []).append({
+                    "news_id": article_id,
+                    "headline": headline[:100],
+                    "persona": persona_id,
+                    "tldr": tldr[:200],
+                    "timestamp": datetime.now().isoformat(),
+                    "url": f"https://leviathannews.xyz/news/{article_id}",
+                })
+                # Keep only last 100 entries
+                if len(self._stats["posted_tldrs"]) > 100:
+                    self._stats["posted_tldrs"] = self._stats["posted_tldrs"][-100:]
 
             # Small delay between posts from different personas
             time.sleep(3)
@@ -281,6 +320,10 @@ class FleetCoordinator:
         self._save_stats()
 
         return posted_count
+
+    def _get_all_wallet_addresses(self) -> list[str]:
+        """Get all wallet addresses from our persona bots."""
+        return [bot.persona.wallet_address for bot in self.persona_bots.values()]
 
     def run_once(self) -> dict[str, int]:
         """
@@ -308,13 +351,24 @@ class FleetCoordinator:
             logger.info("No pending articles found")
             return {"articles_checked": 0, "tldrs_posted": 0}
 
+        # Get all our wallet addresses for cross-persona duplicate check
+        our_wallets = self._get_all_wallet_addresses()
+        max_per_article = self.config.max_bot_comments_per_article
+
         total_posted = 0
         for article in articles:
-            # Skip articles that already have TL;DRs
-            if first_bot.api_client.article_has_tldr(article):
+            article_id = article.get("id")
+
+            # Check how many of OUR bots have already commented on this article
+            existing_count = first_bot.api_client.count_bot_comments(article_id, our_wallets)
+            if existing_count >= max_per_article:
+                logger.debug(f"Article {article_id}: Already have {existing_count}/{max_per_article} bot comments, skipping")
                 continue
 
-            posted = self.process_article(article)
+            # Calculate how many more we can post
+            slots_remaining = max_per_article - existing_count
+
+            posted = self.process_article(article, max_posts=slots_remaining)
             total_posted += posted
 
             # Delay between articles
@@ -375,6 +429,27 @@ class FleetCoordinator:
                 json.dump(self._stats, f, indent=2)
         except Exception as e:
             logger.warning(f"Failed to save stats: {e}")
+
+    def print_recent(self, limit: int = 20) -> None:
+        """Print recently posted TL;DRs for easy lookup."""
+        print("\n" + "=" * 70)
+        print("RECENT TL;DRs POSTED")
+        print("=" * 70)
+
+        posted = self._stats.get("posted_tldrs", [])
+        if not posted:
+            print("No TL;DRs posted yet.")
+            return
+
+        # Show most recent first
+        for entry in reversed(posted[-limit:]):
+            print(f"\n[{entry['news_id']}] {entry['headline']}")
+            print(f"  Persona: {entry['persona']}")
+            print(f"  TL;DR: {entry['tldr'][:100]}...")
+            print(f"  URL: {entry['url']}")
+            print(f"  Posted: {entry['timestamp']}")
+
+        print("\n" + "=" * 70)
 
     def print_leaderboard(self) -> None:
         """Print a leaderboard of persona performance."""

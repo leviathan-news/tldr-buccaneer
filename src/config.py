@@ -44,6 +44,7 @@ class Config:
     # Bot Settings
     poll_interval_minutes: int = 5
     max_articles_per_run: int = 10
+    max_bot_comments_per_article: int = 2  # Max total comments from ALL our personas per article
     pirate_mode: bool = True  # For legacy single-bot mode
 
     # Fleet Mode Settings
@@ -100,6 +101,7 @@ class Config:
             deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
             poll_interval_minutes=int(os.getenv("POLL_INTERVAL_MINUTES", "5")),
             max_articles_per_run=int(os.getenv("MAX_ARTICLES_PER_RUN", "10")),
+            max_bot_comments_per_article=int(os.getenv("MAX_BOT_COMMENTS_PER_ARTICLE", "2")),
             pirate_mode=os.getenv("PIRATE_MODE", "true").lower() == "true",
             fleet_mode=fleet_mode,
             dice_weights=dice_weights,
