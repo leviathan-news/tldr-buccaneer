@@ -12,7 +12,7 @@ import logging
 import random
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -321,6 +321,20 @@ class FleetCoordinator:
         """Get all display names from our persona bots."""
         return [bot.persona.name for bot in self.persona_bots.values()]
 
+    def _is_article_too_old(self, article: dict[str, Any]) -> bool:
+        """Check if article is older than max_article_age_days."""
+        date_str = article.get("date_created")
+        if not date_str:
+            return False  # If no date, assume it's recent
+
+        try:
+            # Parse ISO format date
+            article_date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            cutoff = datetime.now(timezone.utc) - timedelta(days=self.config.max_article_age_days)
+            return article_date < cutoff
+        except (ValueError, TypeError):
+            return False  # If parsing fails, assume it's recent
+
     def run_once(self) -> dict[str, int]:
         """
         Run a single polling cycle across all personas.
@@ -352,8 +366,15 @@ class FleetCoordinator:
         max_per_article = self.config.max_bot_comments_per_article
 
         total_posted = 0
+        skipped_old = 0
         for article in articles:
             article_id = article.get("id")
+
+            # Skip articles older than max_article_age_days
+            if self._is_article_too_old(article):
+                skipped_old += 1
+                logger.debug(f"Article {article_id}: Too old (>{self.config.max_article_age_days} days), skipping")
+                continue
 
             # Check how many of OUR bots have already commented on this article
             existing_count = first_bot.api_client.count_bot_comments(article_id, our_bot_names)
@@ -373,9 +394,13 @@ class FleetCoordinator:
         self._stats["last_run"] = datetime.now().isoformat()
         self._save_stats()
 
+        if skipped_old > 0:
+            logger.info(f"Skipped {skipped_old} articles older than {self.config.max_article_age_days} days")
+
         return {
             "articles_checked": len(articles),
             "tldrs_posted": total_posted,
+            "skipped_old": skipped_old,
         }
 
     def run_forever(self) -> None:

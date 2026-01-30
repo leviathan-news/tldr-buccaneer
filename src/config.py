@@ -45,6 +45,7 @@ class Config:
     poll_interval_minutes: int = 5
     max_articles_per_run: int = 10
     max_bot_comments_per_article: int = 2  # Max total comments from ALL our personas per article
+    max_article_age_days: int = 7  # Only comment on articles newer than this
     pirate_mode: bool = True  # For legacy single-bot mode
 
     # Fleet Mode Settings
@@ -102,6 +103,7 @@ class Config:
             poll_interval_minutes=int(os.getenv("POLL_INTERVAL_MINUTES", "5")),
             max_articles_per_run=int(os.getenv("MAX_ARTICLES_PER_RUN", "10")),
             max_bot_comments_per_article=int(os.getenv("MAX_BOT_COMMENTS_PER_ARTICLE", "2")),
+            max_article_age_days=int(os.getenv("MAX_ARTICLE_AGE_DAYS", "7")),
             pirate_mode=os.getenv("PIRATE_MODE", "true").lower() == "true",
             fleet_mode=fleet_mode,
             dice_weights=dice_weights,
