@@ -317,9 +317,9 @@ class FleetCoordinator:
 
         return posted_count
 
-    def _get_all_wallet_addresses(self) -> list[str]:
-        """Get all wallet addresses from our persona bots."""
-        return [bot.persona.wallet_address for bot in self.persona_bots.values()]
+    def _get_all_bot_names(self) -> list[str]:
+        """Get all display names from our persona bots."""
+        return [bot.persona.name for bot in self.persona_bots.values()]
 
     def run_once(self) -> dict[str, int]:
         """
@@ -347,8 +347,8 @@ class FleetCoordinator:
             logger.info("No pending articles found")
             return {"articles_checked": 0, "tldrs_posted": 0}
 
-        # Get all our wallet addresses for cross-persona duplicate check
-        our_wallets = self._get_all_wallet_addresses()
+        # Get all our bot names for cross-persona duplicate check
+        our_bot_names = self._get_all_bot_names()
         max_per_article = self.config.max_bot_comments_per_article
 
         total_posted = 0
@@ -356,7 +356,7 @@ class FleetCoordinator:
             article_id = article.get("id")
 
             # Check how many of OUR bots have already commented on this article
-            existing_count = first_bot.api_client.count_bot_comments(article_id, our_wallets)
+            existing_count = first_bot.api_client.count_bot_comments(article_id, our_bot_names)
             if existing_count >= max_per_article:
                 logger.debug(f"Article {article_id}: Already have {existing_count}/{max_per_article} bot comments, skipping")
                 continue

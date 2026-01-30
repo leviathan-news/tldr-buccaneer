@@ -281,25 +281,26 @@ class LeviathanAPIClient:
             logger.warning(f"Failed to fetch yaps for article {article_id}: {e}")
             return []
 
-    def count_bot_comments(self, article_id: int, wallet_addresses: list[str]) -> int:
+    def count_bot_comments(self, article_id: int, bot_names: list[str]) -> int:
         """
-        Count how many comments from our wallets exist on an article.
+        Count how many comments from our bots exist on an article.
 
         Args:
             article_id: The article ID
-            wallet_addresses: List of our wallet addresses (lowercase)
+            bot_names: List of our bot display names
 
         Returns:
-            Number of comments from our wallets
+            Number of comments from our bots
         """
         yaps = self.get_article_yaps(article_id)
-        wallet_set = {addr.lower() for addr in wallet_addresses}
+        name_set = {name.lower() for name in bot_names}
         count = 0
         for yap in yaps:
-            user = yap.get("user", {})
-            yap_address = user.get("ethereum_address", "").lower()
-            if yap_address in wallet_set:
+            author = yap.get("author", {})
+            display_name = author.get("display_name", "").lower()
+            if display_name in name_set:
                 count += 1
+                logger.debug(f"Found existing comment from {display_name} on article {article_id}")
         return count
 
     @classmethod
