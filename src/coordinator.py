@@ -66,11 +66,8 @@ class PersonaBot:
         # Override the system prompt for this persona
         self.summarizer._persona_prompt = self.persona.system_prompt
 
-    def generate_tldr(self, headline: str, url: str | None = None) -> str | None:
-        """Generate a TL;DR using this persona's style."""
-        # Temporarily override the system prompt
-        original_pirate_mode = self.config.pirate_mode
-
+    def generate_comment(self, headline: str, url: str | None = None) -> str | None:
+        """Generate a comment using this persona's style."""
         # Use custom prompt generation
         content = None
         if url:
@@ -83,13 +80,13 @@ class PersonaBot:
 Article content:
 {content}
 
-Please provide a concise TL;DR summary (2-4 sentences)."""
+Write a comment on this article in your style."""
         else:
             user_prompt = f"""Article headline: {headline}
 
-(Full article content not available - summarize based on headline)
+(Full article content not available - comment based on headline)
 
-Please provide a concise TL;DR summary (1-2 sentences) based on the headline."""
+Write a brief comment on this headline in your style."""
 
         try:
             response = self.summarizer._client.chat.completions.create(
@@ -98,27 +95,26 @@ Please provide a concise TL;DR summary (1-2 sentences) based on the headline."""
                     {"role": "system", "content": self.persona.system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_tokens=300,
-                temperature=0.7,
+                max_tokens=400,
+                temperature=0.8,
             )
 
-            tldr = response.choices[0].message.content.strip()
+            comment = response.choices[0].message.content.strip()
 
-            # Clean up any markdown formatting
-            if tldr.startswith("TL;DR:"):
-                tldr = tldr[6:].strip()
-            if tldr.startswith("**TL;DR:**"):
-                tldr = tldr[10:].strip()
+            # Clean up any unwanted prefixes
+            for prefix in ["TL;DR:", "**TL;DR:**", "Comment:", "**Comment:**"]:
+                if comment.startswith(prefix):
+                    comment = comment[len(prefix):].strip()
 
-            return tldr
+            return comment
 
         except Exception as e:
-            logger.error(f"[{self.persona.id}] Failed to generate TL;DR: {e}")
+            logger.error(f"[{self.persona.id}] Failed to generate comment: {e}")
             return None
 
-    def post_tldr(self, article_id: int, tldr: str, headline: str = "") -> dict | None:
+    def post_comment(self, article_id: int, comment: str, headline: str = "") -> dict | None:
         """
-        Post a TL;DR for the given article.
+        Post a comment for the given article.
 
         Returns:
             Dict with posted yap info on success, None on failure
@@ -126,25 +122,25 @@ Please provide a concise TL;DR summary (1-2 sentences) based on the headline."""
         try:
             result = self.api_client.post_yap(
                 article_id=article_id,
-                text=tldr,
-                tags=["tldr"],
+                text=comment,
+                tags=[],  # No tags - comments are varied styles, not just TL;DRs
             )
-            self.persona.tldrs_posted += 1
+            self.persona.tldrs_posted += 1  # Keep stat name for now
 
             # Print clear output for easy querying
             print(f"POSTED: news_id={article_id} persona={self.persona.id} wallet={self.persona.wallet_address[:10]}...")
             print(f"  Headline: {headline[:60]}...")
-            print(f"  TL;DR: {tldr[:80]}...")
+            print(f"  Comment: {comment[:80]}...")
             print(f"  URL: https://leviathannews.xyz/news/{article_id}")
             print()
 
-            logger.info(f"[{self.persona.id}] Posted TL;DR for article {article_id}")
-            return {"article_id": article_id, "persona": self.persona.id, "tldr": tldr}
+            logger.info(f"[{self.persona.id}] Posted comment for article {article_id}")
+            return {"article_id": article_id, "persona": self.persona.id, "comment": comment}
         except APIError as e:
             if "Duplicate yap" in str(e):
-                logger.warning(f"[{self.persona.id}] Duplicate TL;DR for article {article_id}")
+                logger.warning(f"[{self.persona.id}] Duplicate comment for article {article_id}")
             else:
-                logger.error(f"[{self.persona.id}] Failed to post TL;DR: {e}")
+                logger.error(f"[{self.persona.id}] Failed to post comment: {e}")
             return None
 
 
@@ -286,26 +282,26 @@ class FleetCoordinator:
         for bot in selected_bots:
             persona_id = bot.persona.id
 
-            # Generate TL;DR with this persona's style
-            tldr = bot.generate_tldr(headline=headline, url=url)
+            # Generate comment with this persona's style
+            comment = bot.generate_comment(headline=headline, url=url)
 
-            if not tldr:
+            if not comment:
                 self._stats["persona_stats"][persona_id]["errors"] += 1
                 continue
 
-            # Post the TL;DR
-            result = bot.post_tldr(article_id, tldr, headline=headline)
+            # Post the comment
+            result = bot.post_comment(article_id, comment, headline=headline)
             if result:
                 posted_count += 1
                 self._stats["persona_stats"][persona_id]["tldrs_posted"] += 1
                 self._stats["persona_stats"][persona_id]["articles_processed"] += 1
 
-                # Track posted TL;DR for easy lookup
+                # Track posted comment for easy lookup
                 self._stats.setdefault("posted_tldrs", []).append({
                     "news_id": article_id,
                     "headline": headline[:100],
                     "persona": persona_id,
-                    "tldr": tldr[:200],
+                    "comment": comment[:200],
                     "timestamp": datetime.now().isoformat(),
                     "url": f"https://leviathannews.xyz/news/{article_id}",
                 })
@@ -431,21 +427,23 @@ class FleetCoordinator:
             logger.warning(f"Failed to save stats: {e}")
 
     def print_recent(self, limit: int = 20) -> None:
-        """Print recently posted TL;DRs for easy lookup."""
+        """Print recently posted comments for easy lookup."""
         print("\n" + "=" * 70)
-        print("RECENT TL;DRs POSTED")
+        print("RECENT COMMENTS POSTED")
         print("=" * 70)
 
         posted = self._stats.get("posted_tldrs", [])
         if not posted:
-            print("No TL;DRs posted yet.")
+            print("No comments posted yet.")
             return
 
         # Show most recent first
         for entry in reversed(posted[-limit:]):
             print(f"\n[{entry['news_id']}] {entry['headline']}")
             print(f"  Persona: {entry['persona']}")
-            print(f"  TL;DR: {entry['tldr'][:100]}...")
+            # Handle both old 'tldr' and new 'comment' keys
+            comment_text = entry.get('comment') or entry.get('tldr', '')
+            print(f"  Comment: {comment_text[:100]}...")
             print(f"  URL: {entry['url']}")
             print(f"  Posted: {entry['timestamp']}")
 

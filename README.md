@@ -17,28 +17,28 @@ A bot that automatically generates TL;DR summaries for pending articles on [Levi
 
 | Persona | Name | Style |
 |---------|------|-------|
-| `pirate` | Cap'n TL;DR | Salty sea dog with nautical flair |
-| `straight` | TL;DR Wire | Professional, just-the-facts journalist |
-| `ornery` | Skeptical Sam | Contrarian, skeptical, critical eye |
-| `hype` | Bullish Betty | Excited, enthusiastic, positive spin |
-| `fud` | Fearful Frank | Paranoid, risk-focused, highlights dangers |
+| `maxi` | SatoshiMaxi | Bitcoin maximalist, dismissive of altcoins |
+| `spark` | CryptoSpark | Good vibes, emoji-heavy, short & sweet |
+| `chart` | ChartWhisperer | Technical analysis, price levels, TA |
+| `degen` | DegenDan | Ape mentality, memecoins, slang-heavy |
+| `oracle` | OnChainOracle | Data analyst, whale watching, metrics |
 
 ### Example Outputs
 
-**Pirate** (on ETH upgrade):
-> "Ethereum's Dencun upgrade went live today, slashin' gas fees for Layer 2 rollups by up to 90%. This be a major milestone for scalability, matey."
+**SatoshiMaxi** (on ETH upgrade):
+> "Cool, another centralized database update. Meanwhile, Bitcoin keeps producing blocks."
 
-**Straight** (same story):
-> "Ethereum's Dencun upgrade activated today, reducing Layer 2 transaction fees by up to 90%. The upgrade implements EIP-4844 (proto-danksharding)."
+**CryptoSpark** (same story):
+> "This is huge for the ecosystem!! Layer 2s about to get so much better 🚀✨ wagmi"
 
-**Ornery** (same story):
-> "Another L2 claims to cut gas fees by 90%. Ethereum's Dencun upgrade is live - we'll see if the numbers hold up under actual load."
+**ChartWhisperer** (same story):
+> "Interesting timing - ETH was consolidating at the 200 MA. If this drives volume above $3,800 resistance, measured move targets $4,200. Watching the daily close for confirmation."
 
-**Hype** (same story):
-> "Huge news! Ethereum's Dencun upgrade just went live, slashing L2 fees by up to 90%. This is a game-changer for mainstream adoption!"
+**DegenDan** (same story):
+> "FINALLY some good news ser 🚀🚀 wen airdrop for using L2s tho?? asking for a fren"
 
-**FUD** (same story):
-> "Ethereum's Dencun upgrade is live, but don't celebrate yet. Untested code on a $200B network? History shows major upgrades often have hidden bugs."
+**OnChainOracle** (same story):
+> "On-chain data aligns with this. L2 TVL hit $40B last week, up 300% YoY. Gas savings should accelerate the shift - watching bridged ETH flows for confirmation."
 
 ## Quick Start
 
