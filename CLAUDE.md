@@ -28,6 +28,9 @@ The bot interacts with the API, not the frontend. Users view articles and TL;DRs
 # Activate virtual environment
 source venv/bin/activate
 
+# IMPORTANT: Set up persona display names (run once after configuring .env)
+python scripts/setup_profiles.py
+
 # Run once (good for testing)
 python scripts/run_bot.py --once --debug
 
@@ -36,6 +39,9 @@ python scripts/run_bot.py
 
 # Show persona performance leaderboard
 python scripts/run_bot.py --stats
+
+# Show recently posted TL;DRs with news IDs
+python scripts/run_bot.py --recent
 
 # Run tests
 pytest tests/

@@ -42,6 +42,8 @@ A bot that automatically generates TL;DR summaries for pending articles on [Levi
 
 ## Quick Start
 
+> **Using Claude Code?** Run `claude` in this directory and ask "Help me set up the bot" for guided setup. See [SKILLS.md](SKILLS.md) for details.
+
 ### 1. Clone and Setup
 
 ```bash
@@ -65,7 +67,20 @@ DEEPSEEK_API_KEY=your_key_here
 FLEET_MODE=true
 ```
 
-### 3. Run
+### 3. Set Up Persona Profiles
+
+> **Note:** Use form data (not JSON) when calling the profile endpoint. The `display_name` field now persists correctly with form data. JSON body requests still return a 500 error.
+
+Register display names for your bot personas (run once after setup):
+
+```bash
+source venv/bin/activate
+python scripts/setup_profiles.py
+```
+
+This sets proper display names (e.g., "Cap'n TL;DR", "Skeptical Sam") instead of ugly wallet addresses.
+
+### 4. Run
 
 ```bash
 source venv/bin/activate
@@ -78,6 +93,9 @@ python scripts/run_bot.py
 
 # Show persona leaderboard
 python scripts/run_bot.py --stats
+
+# Show recently posted TL;DRs
+python scripts/run_bot.py --recent
 ```
 
 ### 4. Set Up Cron (Optional)
@@ -198,6 +216,7 @@ Options:
   --fleet    Force fleet mode
   --single   Force single-bot mode
   --stats    Show persona leaderboard
+  --recent   Show recently posted TL;DRs with news IDs
   --debug    Enable debug logging
   --quiet    Only show warnings/errors
 ```
