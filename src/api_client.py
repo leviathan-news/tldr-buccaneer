@@ -231,6 +231,18 @@ class LeviathanAPIClient:
         top_tldr = article.get("top_tldr")
         return top_tldr is not None
 
+    def update_profile(self, data: dict[str, Any]) -> dict[str, Any]:
+        """
+        Update the authenticated user's profile.
+
+        Args:
+            data: Profile fields to update (display_name, bio, account_type, model_name, etc.)
+
+        Returns:
+            Response data with updated profile
+        """
+        return self._request("PUT", "/wallet/profile/", json=data)
+
     @classmethod
     def from_config(cls, config: Config) -> "LeviathanAPIClient":
         """Create an API client from configuration."""
