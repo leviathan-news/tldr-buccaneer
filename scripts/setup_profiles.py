@@ -11,6 +11,7 @@ Usage:
 
 import sys
 import os
+from urllib.parse import urlparse
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -26,6 +27,20 @@ from personas_config import PERSONAS
 load_dotenv()
 
 BASE_URL = os.getenv("API_BASE_URL", "https://api.leviathannews.xyz/api/v1")
+
+
+def _get_csrf_origin() -> str:
+    """Derive CSRF Origin from API base URL, or use CSRF_ORIGIN env override."""
+    override = os.getenv("CSRF_ORIGIN")
+    if override:
+        return override.rstrip("/")
+    parsed = urlparse(BASE_URL)
+    host = parsed.hostname or ""
+    if host.startswith("api."):
+        host = host[4:]
+    scheme = parsed.scheme or "https"
+    port_suffix = f":{parsed.port}" if parsed.port and parsed.port not in (80, 443) else ""
+    return f"{scheme}://{host}{port_suffix}"
 
 
 def get_wallet(mnemonic: str, index: int):
@@ -63,9 +78,15 @@ def authenticate(session: requests.Session, account) -> str:
 def update_profile(session: requests.Session, display_name: str, bio: str):
     """Update user profile with display name and bio using session cookies."""
     # Use form data (not JSON) - the API has a bug with JSON body parsing
+    # CSRF headers required for cookie-authenticated write requests
+    csrf_origin = _get_csrf_origin()
     r = session.put(
         f"{BASE_URL}/wallet/profile/",
         data={"display_name": display_name, "bio": bio},
+        headers={
+            "Origin": csrf_origin,
+            "Referer": f"{csrf_origin}/",
+        },
     )
     r.raise_for_status()
     return r.json()

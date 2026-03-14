@@ -7,6 +7,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
@@ -46,6 +47,29 @@ class LeviathanAPIClient:
     def base_url(self) -> str:
         """Get the API base URL."""
         return self.config.api_base_url.rstrip("/")
+
+    def _get_csrf_origin(self) -> str:
+        """Derive the CSRF Origin from the API base URL.
+
+        The Leviathan API trusts origins matching its own domain.  For the
+        default production API (api.leviathannews.xyz) the trusted origin is
+        https://leviathannews.xyz.  For other deployments (staging, localhost)
+        the origin is derived from the configured API base URL, or can be
+        overridden via the CSRF_ORIGIN env var.
+        """
+        import os
+        override = os.getenv("CSRF_ORIGIN")
+        if override:
+            return override.rstrip("/")
+
+        parsed = urlparse(self.base_url)
+        host = parsed.hostname or ""
+        # Strip "api." prefix — the trusted origin is the main site domain
+        if host.startswith("api."):
+            host = host[4:]
+        scheme = parsed.scheme or "https"
+        port_suffix = f":{parsed.port}" if parsed.port and parsed.port not in (80, 443) else ""
+        return f"{scheme}://{host}{port_suffix}"
 
     def _ensure_authenticated(self) -> None:
         """Ensure we have a valid access token."""
@@ -116,8 +140,15 @@ class LeviathanAPIClient:
         # Token typically valid for 60 minutes
         self._token_expiry = time.time() + 3600
 
-        # Update session headers with token
-        self._session.headers["Authorization"] = f"Bearer {self._access_token}"
+        # Use cookie auth with CSRF headers.
+        # Bearer auth is not available on production (Apache strips
+        # the Authorization header without WSGIPassAuthorization On).
+        self._session.cookies.set("access_token", self._access_token)
+        csrf_origin = self._get_csrf_origin()
+        self._session.headers.update({
+            "Origin": csrf_origin,
+            "Referer": f"{csrf_origin}/",
+        })
 
         logger.info(f"Successfully authenticated as {self.wallet.address[:10]}...")
 
