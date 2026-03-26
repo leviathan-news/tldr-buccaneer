@@ -61,15 +61,14 @@ class PersonaBot:
             wallet=wallet,
         )
 
-        # Create summarizer with persona's prompt
+        # Create summarizer for this persona
         self.summarizer = DeepseekSummarizer(config=self.config)
-        # Override the system prompt for this persona
-        self.summarizer._persona_prompt = self.persona.system_prompt
 
     def generate_comment(
         self,
         headline: str,
         url: str | None = None,
+        content: str | None = None,
         existing_comments: list[dict[str, str]] | None = None,
     ) -> str | None:
         """Generate a comment using this persona's style with tool-use and validation.
@@ -83,6 +82,7 @@ class PersonaBot:
         Args:
             headline: Article headline text.
             url: Optional article URL for content fetching.
+            content: Optional pre-fetched article content (avoids re-fetching).
             existing_comments: Previously posted comments on this article,
                 each a dict with "author" and "text" keys.
 
@@ -96,6 +96,7 @@ class PersonaBot:
             headline=headline,
             system_prompt=self.persona.system_prompt,
             url=url,
+            content=content,
             existing_comments=existing_comments,
             temperature=self.persona.temperature,
             max_tokens=self.persona.max_tokens,
@@ -130,6 +131,7 @@ class PersonaBot:
             headline=headline,
             system_prompt=stricter_prompt,
             url=url,
+            content=content,
             existing_comments=existing_comments,
             temperature=self.persona.temperature,
             max_tokens=self.persona.max_tokens,
@@ -443,6 +445,7 @@ class FleetCoordinator:
             comment = bot.generate_comment(
                 headline=headline,
                 url=url,
+                content=content,
                 existing_comments=existing_comments,
             )
             if not comment:

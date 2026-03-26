@@ -65,14 +65,59 @@ def web_search(query: str) -> str:
         return f"Error: web search failed — {exc}"
 
 
+def _is_safe_url(url: str) -> bool:
+    """Validate a URL is safe to fetch (not targeting internal/private networks).
+
+    Blocks SSRF attempts where the LLM could request internal endpoints
+    like cloud metadata services (169.254.x.x) or localhost.
+    """
+    from urllib.parse import urlparse
+    import socket
+
+    try:
+        parsed = urlparse(url)
+        # Only allow http/https schemes
+        if parsed.scheme not in ("http", "https"):
+            return False
+        if not parsed.hostname:
+            return False
+
+        # Resolve hostname and check for private/reserved IP ranges
+        addr = socket.gethostbyname(parsed.hostname)
+        parts = [int(p) for p in addr.split(".")]
+
+        # Block private, loopback, link-local, and reserved ranges
+        if parts[0] == 127:  # 127.0.0.0/8 loopback
+            return False
+        if parts[0] == 10:  # 10.0.0.0/8 private
+            return False
+        if parts[0] == 172 and 16 <= parts[1] <= 31:  # 172.16.0.0/12 private
+            return False
+        if parts[0] == 192 and parts[1] == 168:  # 192.168.0.0/16 private
+            return False
+        if parts[0] == 169 and parts[1] == 254:  # 169.254.0.0/16 link-local
+            return False
+        if parts[0] == 0:  # 0.0.0.0/8 reserved
+            return False
+
+        return True
+    except Exception:
+        return False
+
+
 def web_fetch(url: str) -> str:
     """
     Fetch readable text from a URL via ContentFetcher.
 
-    Returns the extracted text (truncated to 5 000 chars) or an error
-    message string on failure.
+    Validates the URL is not targeting internal/private networks (SSRF protection)
+    before fetching. Returns the extracted text (truncated to 5 000 chars) or
+    an error message string on failure.
     """
     try:
+        # SSRF protection — block requests to internal/private IPs
+        if not _is_safe_url(url):
+            return f"Error: URL blocked (private/internal network): {url}"
+
         content = _content_fetcher.fetch(url)
 
         if content is None:

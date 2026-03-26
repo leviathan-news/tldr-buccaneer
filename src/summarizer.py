@@ -319,8 +319,9 @@ Please provide a concise TL;DR summary (1-2 sentences) based on the headline."""
 
                 # -- 4a. Model returned tool calls: execute and loop ----------
                 if choice.message.tool_calls:
-                    # Append the assistant message (contains the tool_calls)
-                    messages.append(choice.message)
+                    # Append the assistant message as a dict for Deepseek compatibility
+                    # (mixing SDK objects with plain dicts can break non-OpenAI providers)
+                    messages.append(choice.message.model_dump())
 
                     for tc in choice.message.tool_calls:
                         logger.debug(
@@ -343,8 +344,9 @@ Please provide a concise TL;DR summary (1-2 sentences) based on the headline."""
                     continue
 
                 # -- 4b. No tool calls — extract final text response ----------
-                raw = (choice.message.content or "").strip()
-                comment = self._clean_comment_prefixes(raw)
+                # Prefix cleaning (TL;DR:, Comment:, etc.) is handled by
+                # validators.validate_comment() in the coordinator layer.
+                comment = (choice.message.content or "").strip()
                 if not comment:
                     logger.warning("Empty comment generated for: %s", headline[:40])
                     return None
@@ -367,26 +369,6 @@ Please provide a concise TL;DR summary (1-2 sentences) based on the headline."""
         except Exception as e:
             logger.error("Failed to generate comment with tools: %s", e)
             return None
-
-    @staticmethod
-    def _clean_comment_prefixes(text: str) -> str:
-        """
-        Strip common LLM-generated prefixes from a comment.
-
-        Models sometimes prepend labels like "TL;DR:" or "Comment:" that
-        should not appear in the posted comment.
-        """
-        # Order matters: check bold/markdown variants first, then plain.
-        prefixes = (
-            "**TL;DR:**",
-            "**Comment:**",
-            "TL;DR:",
-            "Comment:",
-        )
-        for prefix in prefixes:
-            if text.startswith(prefix):
-                text = text[len(prefix):].strip()
-        return text
 
     @classmethod
     def from_config(cls, config: Config) -> "DeepseekSummarizer":

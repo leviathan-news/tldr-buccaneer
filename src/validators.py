@@ -24,12 +24,22 @@ from typing import Tuple, Optional
 # ---------------------------------------------------------------------------
 _PREAMBLE_PREFIXES: list[str] = [
     "Here's my comment:",
+    "Here's my take:",
+    "Here's my analysis:",
+    "Here's my",
     "Here is the",
+    "Here is my",
     "Let me analyze",
+    "Let me break",
     "Sure, here",
     "I'll provide",
     "Based on my research,",
+    "Based on the article,",
     "After reviewing,",
+    "**TL;DR:**",
+    "TL;DR:",
+    "**Comment:**",
+    "Comment:",
 ]
 
 # ---------------------------------------------------------------------------
