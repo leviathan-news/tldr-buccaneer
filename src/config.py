@@ -48,6 +48,9 @@ class Config:
     max_article_age_days: int = 7  # Only comment on articles newer than this
     pirate_mode: bool = True  # For legacy single-bot mode
 
+    # Optional: Twitter API for research-before-commenting (function calling)
+    twitter_bearer_token: str = ""
+
     # Fleet Mode Settings
     fleet_mode: bool = False
     dice_weights: tuple[float, float, float, float] = DEFAULT_DICE_WEIGHTS
@@ -105,6 +108,7 @@ class Config:
             max_bot_comments_per_article=int(os.getenv("MAX_BOT_COMMENTS_PER_ARTICLE", "2")),
             max_article_age_days=int(os.getenv("MAX_ARTICLE_AGE_DAYS", "7")),
             pirate_mode=os.getenv("PIRATE_MODE", "true").lower() == "true",
+            twitter_bearer_token=os.getenv("TWITTER_BEARER_TOKEN", ""),
             fleet_mode=fleet_mode,
             dice_weights=dice_weights,
             bot_name=os.getenv("BOT_NAME", "Cap'n TL;DR"),
