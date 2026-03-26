@@ -133,6 +133,8 @@ def strip_preamble(text: str) -> str:
 
     # --- Step 1: Multi-paragraph preamble removal ---
     # Split on double-newline (blank line separators).
+    # If step 1 fires, skip step 2 to avoid destructively stripping mid-sentence.
+    stripped_paragraph = False
     paragraphs = re.split(r"\n\s*\n", cleaned, maxsplit=1)
     if len(paragraphs) > 1:
         first_lower = paragraphs[0].strip().lower()
@@ -140,16 +142,18 @@ def strip_preamble(text: str) -> str:
         for prefix in _PREAMBLE_PREFIXES:
             if first_lower.startswith(prefix.lower()):
                 cleaned = paragraphs[1].strip()
+                stripped_paragraph = True
                 break
 
     # --- Step 2: Single-paragraph prefix removal ---
-    # After multi-paragraph handling, try inline prefix stripping on whatever remains.
-    text_lower = cleaned.lower()
-    for prefix in _PREAMBLE_PREFIXES:
-        if text_lower.startswith(prefix.lower()):
-            # Remove the prefix and any leading whitespace after it.
-            cleaned = cleaned[len(prefix):].lstrip()
-            break
+    # Only runs if step 1 didn't already strip a paragraph.
+    if not stripped_paragraph:
+        text_lower = cleaned.lower()
+        for prefix in _PREAMBLE_PREFIXES:
+            if text_lower.startswith(prefix.lower()):
+                # Remove the prefix and any leading whitespace after it.
+                cleaned = cleaned[len(prefix):].lstrip()
+                break
 
     # --- Step 3: Trailing sign-off removal ---
     for pattern in _SIGNOFF_PATTERNS:
