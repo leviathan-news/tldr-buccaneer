@@ -61,13 +61,15 @@ for p in PERSONAS: print(f\"{p['id']}: {d.derive_wallet(p['index'])[0]}\")
 
 ```
 src/
-├── personas_config.py  # Persona definitions (id, index, name, bio, prompt) - NO SECRETS
+├── personas_config.py  # Persona definitions (id, index, name, bio, prompt, temperature, max_tokens) - NO SECRETS
 ├── config.py           # Loads MNEMONIC from .env, personas from personas_config.py
 ├── wallet.py           # HDWalletDeriver (BIP-44) + WalletAuth (signing)
 ├── personas.py         # Persona dataclass, loads from personas_config.py
-├── coordinator.py      # FleetCoordinator - dice rolls, persona selection, derives wallets
-├── api_client.py       # Leviathan News API client (auth, fetch articles, post yaps)
-├── summarizer.py       # Deepseek API wrapper for TL;DR generation
+├── coordinator.py      # FleetCoordinator - evaluation gate, dice rolls, persona selection
+├── api_client.py       # Leviathan News API client (auth, fetch articles/comments, post yaps)
+├── summarizer.py       # Deepseek API wrapper with tool-use loop for research-before-commenting
+├── tools.py            # Research tools: web_search (DuckDuckGo), web_fetch, optional twitter_search
+├── validators.py       # Output validation: preamble strip, banned AI-tell phrases, monologue detection
 └── bot.py              # Legacy single-bot mode
 
 scripts/
@@ -78,7 +80,9 @@ cron/
 
 tests/
 ├── test_hd_wallet.py   # HD derivation tests (13 tests)
-└── test_api_client.py  # API client tests (8 tests)
+├── test_api_client.py  # API client tests (12 tests)
+├── test_validators.py  # Output validation tests (53 tests)
+└── test_tools.py       # Research tool tests (12 tests)
 ```
 
 ## Configuration
@@ -89,6 +93,7 @@ MNEMONIC="twelve or twenty four word seed phrase"
 DEEPSEEK_API_KEY=your_key
 FLEET_MODE=true
 # Optional: DICE_WEIGHTS=0.25,0.40,0.25,0.10
+# Optional: TWITTER_BEARER_TOKEN=your_token  # Enable Twitter/X search for research
 # Optional: MAX_BOT_COMMENTS_PER_ARTICLE=2  # Limit total bot comments per article
 ```
 
@@ -166,9 +171,12 @@ FleetCoordinator (coordinator.py)
     │
     └── PersonaBot (per persona)
             │
+            ├── should_comment() → evaluation gate (reads existing comments via API)
+            ├── generate_comment_with_tools() → Deepseek + web_search/web_fetch/twitter_search
+            ├── validate_comment() → preamble strip, banned phrases, monologue detection
             ├── WalletAuth → signs auth messages
-            ├── LeviathanAPIClient → fetches articles, posts yaps
-            └── DeepseekSummarizer → generates TL;DR with persona's prompt
+            ├── LeviathanAPIClient → fetches articles, comments, posts yaps
+            └── DeepseekSummarizer → generates comments with persona's prompt + tool use
 ```
 
 ## Testing
