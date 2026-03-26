@@ -105,6 +105,69 @@ class TestLeviathanAPIClient:
         assert client.article_has_tldr(article) is False
 
 
+    @patch.object(LeviathanAPIClient, 'get_article_yaps')
+    def test_get_article_comments_returns_formatted_list(self, mock_yaps, client):
+        """Test that get_article_comments returns correctly formatted author/text dicts."""
+        mock_yaps.return_value = [
+            {
+                "id": 1,
+                "text": "First comment here",
+                "author": {"display_name": "Alice", "username": "alice123"},
+            },
+            {
+                "id": 2,
+                "text": "Second comment here",
+                "author": {"display_name": "Bob", "username": "bob456"},
+            },
+        ]
+        result = client.get_article_comments(42)
+        assert len(result) == 2
+        assert result[0] == {"author": "Alice", "text": "First comment here"}
+        assert result[1] == {"author": "Bob", "text": "Second comment here"}
+        mock_yaps.assert_called_once_with(42)
+
+    @patch.object(LeviathanAPIClient, 'get_article_yaps')
+    def test_get_article_comments_handles_empty(self, mock_yaps, client):
+        """Test that get_article_comments returns [] when no yaps exist."""
+        mock_yaps.return_value = []
+        result = client.get_article_comments(99)
+        assert result == []
+        mock_yaps.assert_called_once_with(99)
+
+    @patch.object(LeviathanAPIClient, 'get_article_yaps')
+    def test_get_article_comments_handles_missing_author(self, mock_yaps, client):
+        """Test that missing/empty author dicts resolve to 'Anonymous'."""
+        mock_yaps.return_value = [
+            # author dict exists but both fields are empty strings
+            {"id": 1, "text": "No author info", "author": {"display_name": "", "username": ""}},
+            # author key is missing entirely
+            {"id": 2, "text": "No author key"},
+            # author is None
+            {"id": 3, "text": "Null author", "author": None},
+        ]
+        result = client.get_article_comments(1)
+        assert len(result) == 3
+        for comment in result:
+            assert comment["author"] == "Anonymous"
+
+    @patch.object(LeviathanAPIClient, 'get_article_yaps')
+    def test_persona_has_commented(self, mock_yaps, client):
+        """Test detecting a specific persona's comment among yaps via set comparison."""
+        mock_yaps.return_value = [
+            {"id": 1, "text": "Generic take", "author": {"display_name": "RandomUser", "username": "rando"}},
+            {"id": 2, "text": "Arrr, a pirate summary!", "author": {"display_name": "Cap'n Saltbeard", "username": "saltbeard"}},
+            {"id": 3, "text": "Boring analysis", "author": {"display_name": "SomeGuy", "username": "guy"}},
+        ]
+        comments = client.get_article_comments(10)
+        # Simulate the evaluation gate check: does our persona already have
+        # a comment on this article?
+        bot_names = {"Cap'n Saltbeard", "Dr. Doom"}
+        commented_authors = {c["author"] for c in comments}
+        found = bot_names & commented_authors
+        assert "Cap'n Saltbeard" in found
+        assert "Dr. Doom" not in found
+
+
 class TestAPIError:
     """Tests for APIError exception."""
 

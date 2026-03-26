@@ -303,6 +303,37 @@ class LeviathanAPIClient:
                 logger.debug(f"Found existing comment from {display_name} on article {article_id}")
         return count
 
+    def get_article_comments(self, article_id: int) -> list[dict[str, str]]:
+        """Fetch comments on an article, formatted for evaluation prompts.
+
+        Calls get_article_yaps and returns a simplified list of
+        {author, text} dicts suitable for including in LLM prompts.
+        Each comment text is truncated to 200 chars to keep prompt size
+        reasonable.
+
+        Args:
+            article_id: The article ID to fetch comments for.
+
+        Returns:
+            List of {"author": str, "text": str} dicts. Author resolves
+            to display_name, then username, falling back to "Anonymous".
+        """
+        yaps = self.get_article_yaps(article_id)
+        comments: list[dict[str, str]] = []
+        for yap in yaps:
+            # Resolve author: prefer display_name, fall back to username,
+            # then "Anonymous" if both are missing or empty.
+            author_info = yap.get("author") or {}
+            author_name = (
+                author_info.get("display_name")
+                or author_info.get("username")
+                or "Anonymous"
+            )
+            # Truncate comment text to 200 characters for prompt brevity.
+            text = (yap.get("text") or "")[:200]
+            comments.append({"author": author_name, "text": text})
+        return comments
+
     @classmethod
     def from_config(cls, config: Config) -> "LeviathanAPIClient":
         """Create an API client from configuration."""
