@@ -221,7 +221,7 @@ def check_monologue_leak(text: str) -> bool:
     return False
 
 
-def validate_comment(text: str) -> Tuple[str, Optional[str]]:
+def validate_comment(text: str) -> Tuple[Optional[str], str]:
     """Unified validation pipeline for AI-generated comments.
 
     Processing order:
@@ -235,25 +235,25 @@ def validate_comment(text: str) -> Tuple[str, Optional[str]]:
         text: Raw AI-generated comment text.
 
     Returns:
-        Tuple of (status, cleaned_text) where:
-          - ("ok", cleaned_text)  -- comment is acceptable.
-          - ("retry", None)       -- banned phrase detected, re-generate.
-          - ("reject", None)      -- monologue leak or empty, do not post.
+        Tuple of (cleaned_text, status) where:
+          - (cleaned_text, "ok")  -- comment is acceptable.
+          - (None, "retry")       -- banned phrase detected, re-generate.
+          - (None, "reject")      -- monologue leak or empty, do not post.
     """
     # Step 1: Strip preamble and sign-offs.
     cleaned = strip_preamble(text)
 
     # Step 2: Reject if empty after cleaning.
     if not cleaned or not cleaned.strip():
-        return ("reject", None)
+        return (None, "reject")
 
     # Step 3: Monologue leak detection (hard reject, highest priority).
     if check_monologue_leak(cleaned):
-        return ("reject", None)
+        return (None, "reject")
 
     # Step 4: Banned phrase detection (soft reject, allows retry).
     if check_banned_phrases(cleaned):
-        return ("retry", None)
+        return (None, "retry")
 
     # Step 5: All checks passed.
-    return ("ok", cleaned)
+    return (cleaned, "ok")

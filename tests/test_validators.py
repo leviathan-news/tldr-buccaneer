@@ -294,48 +294,48 @@ class TestValidateComment:
     def test_clean_comment_returns_ok(self):
         """Clean comment returns ('ok', cleaned_text)."""
         text = "Bitcoin ETF inflows hit $500M today. Bullish momentum continues."
-        status, cleaned = validate_comment(text)
+        cleaned, status = validate_comment(text)
         assert status == "ok"
         assert cleaned == text
 
     def test_preamble_stripped_then_ok(self):
         """Preamble is stripped, rest passes validation."""
         text = "Here's my comment: BTC dominance just broke 55%."
-        status, cleaned = validate_comment(text)
+        cleaned, status = validate_comment(text)
         assert status == "ok"
         assert cleaned == "BTC dominance just broke 55%."
 
     def test_banned_phrase_returns_retry(self):
         """Comment with banned phrase returns ('retry', None)."""
         text = "The real story here is the whale accumulation."
-        status, cleaned = validate_comment(text)
+        cleaned, status = validate_comment(text)
         assert status == "retry"
         assert cleaned is None
 
     def test_monologue_leak_returns_reject(self):
         """Comment with monologue leak returns ('reject', None)."""
         text = "Let me search for the transaction hash first."
-        status, cleaned = validate_comment(text)
+        cleaned, status = validate_comment(text)
         assert status == "reject"
         assert cleaned is None
 
     def test_monologue_takes_priority_over_banned(self):
         """When both monologue and banned phrases present, monologue (reject) wins."""
         text = "Let me check -- the real question here is the TVL drop."
-        status, cleaned = validate_comment(text)
+        cleaned, status = validate_comment(text)
         assert status == "reject"
         assert cleaned is None
 
     def test_empty_after_strip_returns_reject(self):
         """Text that becomes empty after preamble strip returns ('reject', None)."""
         text = "Here's my comment:"
-        status, cleaned = validate_comment(text)
+        cleaned, status = validate_comment(text)
         assert status == "reject"
         assert cleaned is None
 
     def test_whitespace_only_returns_reject(self):
         """Whitespace-only input returns ('reject', None)."""
         text = "   \n\t  "
-        status, cleaned = validate_comment(text)
+        cleaned, status = validate_comment(text)
         assert status == "reject"
         assert cleaned is None
