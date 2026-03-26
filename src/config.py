@@ -26,6 +26,8 @@ class PersonaConfig:
     name: str
     bio: str
     system_prompt: str
+    temperature: float = 0.7  # Generation temperature (higher = more creative)
+    max_tokens: int = 300  # Max response length
 
 
 @dataclass
@@ -161,6 +163,8 @@ class Config:
                 name=p["name"],
                 bio=p["bio"],
                 system_prompt=p["system_prompt"],
+                temperature=p.get("temperature", 0.7),
+                max_tokens=p.get("max_tokens", 300),
             )
             for p in PERSONAS
         ]

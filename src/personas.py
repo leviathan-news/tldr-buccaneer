@@ -25,6 +25,8 @@ class Persona:
     name: str  # Display name (e.g., "Cap'n TL;DR")
     bio: str  # Profile bio
     system_prompt: str  # Deepseek system prompt
+    temperature: float = 0.7  # Generation temperature (higher = more creative)
+    max_tokens: int = 300  # Max response length
 
     # Wallet credentials - derived at runtime from mnemonic
     wallet_address: str = ""
@@ -47,6 +49,8 @@ DEFAULT_PERSONAS: dict[str, Persona] = {
         name=p["name"],
         bio=p["bio"],
         system_prompt=p["system_prompt"],
+        temperature=p.get("temperature", 0.7),
+        max_tokens=p.get("max_tokens", 300),
     )
     for p in PERSONAS
 }
@@ -70,6 +74,8 @@ def get_persona(persona_id: str) -> Persona:
         name=template.name,
         bio=template.bio,
         system_prompt=template.system_prompt,
+        temperature=template.temperature,
+        max_tokens=template.max_tokens,
     )
 
 
