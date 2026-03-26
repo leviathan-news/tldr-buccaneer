@@ -204,6 +204,190 @@ Please provide a concise TL;DR summary (1-2 sentences) based on the headline."""
             logger.error(f"Failed to generate TL;DR: {e}")
             return None
 
+    def generate_comment_with_tools(
+        self,
+        headline: str,
+        system_prompt: str,
+        url: str | None = None,
+        content: str | None = None,
+        existing_comments: list[dict[str, str]] | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 300,
+        twitter_bearer_token: str = "",
+    ) -> str | None:
+        """
+        Generate a comment using Deepseek with tool-use loop.
+
+        Unlike generate_tldr (single-shot completion), this method lets Deepseek
+        call web_search / web_fetch / twitter_search during generation.  The loop
+        runs up to MAX_TOOL_ROUNDS iterations; on the final round, tools are
+        withheld to force a text response.
+
+        Args:
+            headline: Article headline.
+            system_prompt: Persona-specific system prompt (defines voice/style).
+            url: Optional article URL — content is fetched if not provided.
+            content: Optional pre-fetched article body text.
+            existing_comments: List of dicts with "author" and "text" keys
+                representing comments already posted on this article.
+            temperature: Sampling temperature (higher = more creative).
+            max_tokens: Maximum tokens for the LLM response.
+            twitter_bearer_token: Twitter API bearer token; when empty,
+                the twitter_search tool is not offered.
+
+        Returns:
+            Generated comment string, or None on failure.
+        """
+        # Lazy import to avoid circular dependency (tools.py imports
+        # summarizer.ContentFetcher, so summarizer must not import tools
+        # at module level).
+        from tools import execute_tool_call, get_tool_definitions
+
+        MAX_TOOL_ROUNDS = 3
+        # Budget for article content inside the prompt — keeps the first
+        # LLM call small enough to leave room for tool results later.
+        PROMPT_CONTENT_LIMIT = 3000
+        # Tool output strings are truncated to this length before being
+        # appended to the conversation, preventing context blowout.
+        TOOL_RESULT_LIMIT = 3000
+
+        # -- 1. Fetch article content if not already provided ----------------
+        if content is None and url:
+            content = self.content_fetcher.fetch(url)
+
+        # -- 2. Build the user prompt ----------------------------------------
+        # Start with headline and (truncated) article body.
+        article_section = f"Article headline: {headline}\n"
+        if content:
+            truncated = content[:PROMPT_CONTENT_LIMIT]
+            if len(content) > PROMPT_CONTENT_LIMIT:
+                truncated += "..."
+            article_section += f"\nArticle content:\n{truncated}\n"
+        else:
+            article_section += "\n(Full article content not available — use tools to research the topic.)\n"
+
+        # Append existing comments so the model can differentiate.
+        comments_section = ""
+        if existing_comments:
+            # Cap at 10 to stay within budget.
+            shown = existing_comments[:10]
+            formatted = "\n".join(
+                f"- {c.get('author', 'Unknown')}: {c.get('text', '')}"
+                for c in shown
+            )
+            comments_section = f"\nExisting comments:\n{formatted}\n"
+
+        user_prompt = (
+            f"{article_section}"
+            f"{comments_section}"
+            "\nResearch the topic using available tools, then write your comment. "
+            "Add something the existing comments haven't covered."
+        )
+
+        # -- 3. Prepare messages and tool definitions ------------------------
+        messages: list[dict] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        tool_defs = get_tool_definitions(twitter_bearer_token=twitter_bearer_token)
+
+        # -- 4. Tool-use loop (max MAX_TOOL_ROUNDS rounds) -------------------
+        try:
+            for round_num in range(1, MAX_TOOL_ROUNDS + 1):
+                is_final_round = round_num == MAX_TOOL_ROUNDS
+
+                # On the final round, withhold tools to force a text response.
+                call_tools = None if is_final_round else tool_defs
+
+                logger.debug(
+                    "Tool-use round %d/%d for '%s' (tools=%s)",
+                    round_num,
+                    MAX_TOOL_ROUNDS,
+                    headline[:40],
+                    "disabled" if is_final_round else "enabled",
+                )
+
+                response = self._client.chat.completions.create(
+                    model=self.config.deepseek_model,
+                    messages=messages,
+                    tools=call_tools,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                )
+
+                choice = response.choices[0]
+
+                # -- 4a. Model returned tool calls: execute and loop ----------
+                if choice.message.tool_calls:
+                    # Append the assistant message (contains the tool_calls)
+                    messages.append(choice.message)
+
+                    for tc in choice.message.tool_calls:
+                        logger.debug(
+                            "Executing tool %s (id=%s)",
+                            tc.function.name,
+                            tc.id,
+                        )
+                        result = execute_tool_call(
+                            tc, twitter_bearer_token=twitter_bearer_token
+                        )
+                        # Truncate to stay within context budget.
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tc.id,
+                                "content": result[:TOOL_RESULT_LIMIT],
+                            }
+                        )
+                    # Continue to the next round.
+                    continue
+
+                # -- 4b. No tool calls — extract final text response ----------
+                raw = (choice.message.content or "").strip()
+                comment = self._clean_comment_prefixes(raw)
+                if not comment:
+                    logger.warning("Empty comment generated for: %s", headline[:40])
+                    return None
+
+                logger.info(
+                    "Generated comment (%d chars, %d tool rounds) for: %s",
+                    len(comment),
+                    round_num,
+                    headline[:30],
+                )
+                return comment
+
+            # If the loop completes without returning (all rounds had tool calls
+            # and the forced-text final round also somehow failed), return None.
+            logger.warning(
+                "Tool loop exhausted without final text for: %s", headline[:40]
+            )
+            return None
+
+        except Exception as e:
+            logger.error("Failed to generate comment with tools: %s", e)
+            return None
+
+    @staticmethod
+    def _clean_comment_prefixes(text: str) -> str:
+        """
+        Strip common LLM-generated prefixes from a comment.
+
+        Models sometimes prepend labels like "TL;DR:" or "Comment:" that
+        should not appear in the posted comment.
+        """
+        # Order matters: check bold/markdown variants first, then plain.
+        prefixes = (
+            "**TL;DR:**",
+            "**Comment:**",
+            "TL;DR:",
+            "Comment:",
+        )
+        for prefix in prefixes:
+            if text.startswith(prefix):
+                text = text[len(prefix):].strip()
+        return text
+
     @classmethod
     def from_config(cls, config: Config) -> "DeepseekSummarizer":
         """Create a summarizer from configuration."""
