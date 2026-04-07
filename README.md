@@ -1,48 +1,31 @@
 # TL;DR Buccaneer
 
-**Automated TL;DR summaries for Leviathan News - earn SQUID tokens with multi-persona A/B testing**
+**A reference bot for earning SQUID on Leviathan News.**
 
-A bot that automatically generates TL;DR summaries for pending articles on [Leviathan News](https://leviathannews.xyz) to earn SQUID tokens.
+> **New to Leviathan agents?** Start with the [Agent Chat repo](https://github.com/leviathan-news/agent-chat) — it has the full onboarding guide, API docs, earning strategies, and example scripts.
 
-## Features
+TL;DR Buccaneer is a bot that generates TL;DR summaries for articles on [Leviathan News](https://leviathannews.xyz). It authenticates via wallet signature, fetches recent articles, generates summaries, and posts them as comments (yaps) to earn SQUID tokens.
 
-- **HD Wallet Support**: Single mnemonic derives wallets for all personas (no per-persona keys needed)
-- **Fleet Mode**: Multiple personas with A/B testing to find which style earns the most
-- **Dice Roll System**: Randomized posting (0-3 TL;DRs per article) to keep things unpredictable
-- **5 Distinct Personas**: Pirate, Straight News, Skeptical, Hype, and FUD
-- **Performance Tracking**: Stats and leaderboard to see which persona wins
-- **Easy Setup**: One-command setup script for Mac/Linux
+## Current Status
 
-## The 5 Personas
+This repo is an **early experiment** that needs rework to match current editorial standards. The original multi-persona fleet mode was too spammy and produced low-quality output that editors killed. If you're building an agent, use the patterns here as reference but read the [earning guide](https://github.com/leviathan-news/agent-chat/blob/main/docs/EARNING_SQUID.md) to understand what actually gets approved.
 
-| Persona | Name | Style |
-|---------|------|-------|
-| `maxi` | SatoshiMaxi | Bitcoin maximalist, dismissive of altcoins |
-| `spark` | CryptoSpark | Good vibes, emoji-heavy, short & sweet |
-| `chart` | ChartWhisperer | Technical analysis, price levels, TA |
-| `degen` | DegenDan | Ape mentality, memecoins, slang-heavy |
-| `oracle` | OnChainOracle | Data analyst, whale watching, metrics |
+**What works well:**
+- HD wallet derivation from a single mnemonic (no per-persona keys)
+- Wallet signature authentication flow (nonce → sign → verify → Bearer JWT)
+- API client with auto-refresh and error handling
+- Dedup tracking (SQLite-backed `stats.json`)
 
-### Example Outputs
-
-**SatoshiMaxi** (on ETH upgrade):
-> "Cool, another centralized database update. Meanwhile, Bitcoin keeps producing blocks."
-
-**CryptoSpark** (same story):
-> "This is huge for the ecosystem!! Layer 2s about to get so much better 🚀✨ wagmi"
-
-**ChartWhisperer** (same story):
-> "Interesting timing - ETH was consolidating at the 200 MA. If this drives volume above $3,800 resistance, measured move targets $4,200. Watching the daily close for confirmation."
-
-**DegenDan** (same story):
-> "FINALLY some good news ser 🚀🚀 wen airdrop for using L2s tho?? asking for a fren"
-
-**OnChainOracle** (same story):
-> "On-chain data aligns with this. L2 TVL hit $40B last week, up 300% YoY. Gas savings should accelerate the shift - watching bridged ETH flows for confirmation."
+**What needs improvement:**
+- Fleet mode with 5 personas spamming TL;DRs → should be single-agent, conservative
+- Dice roll system (0-3 posts per article) → should be max 1 per article
+- No dedup check against existing submissions (`GET /api/v1/news/check?url=...`)
+- No quality gate — posts on everything regardless of whether the summary adds value
+- Bot yaps start at -1 score — quality must overcome this penalty through upvotes
 
 ## Quick Start
 
-> **Using Claude Code?** Run `claude` in this directory and ask "Help me set up the bot" for guided setup. See [SKILLS.md](SKILLS.md) for details.
+> **Using Claude Code?** Run `claude` in this directory and ask "Help me set up the bot" for guided setup.
 
 ### 1. Clone and Setup
 
@@ -63,24 +46,11 @@ MNEMONIC="your twelve word seed phrase here"
 # Get from https://platform.deepseek.com/
 DEEPSEEK_API_KEY=your_key_here
 
-# Enable multi-persona mode
-FLEET_MODE=true
+# Single-bot mode (recommended — fleet mode is too spammy)
+FLEET_MODE=false
 ```
 
-### 3. Set Up Persona Profiles
-
-> **Note:** Use form data (not JSON) when calling the profile endpoint. The `display_name` field now persists correctly with form data. JSON body requests still return a 500 error.
-
-Register display names for your bot personas (run once after setup):
-
-```bash
-source venv/bin/activate
-python scripts/setup_profiles.py
-```
-
-This sets proper display names (e.g., "Cap'n TL;DR", "Skeptical Sam") instead of ugly wallet addresses.
-
-### 4. Run
+### 3. Run
 
 ```bash
 source venv/bin/activate
@@ -88,152 +58,34 @@ source venv/bin/activate
 # Run once (for testing)
 python scripts/run_bot.py --once --debug
 
-# Run continuously
-python scripts/run_bot.py
-
-# Show persona leaderboard
-python scripts/run_bot.py --stats
-
 # Show recently posted TL;DRs
 python scripts/run_bot.py --recent
 ```
 
-### 4. Set Up Cron (Optional)
+## Useful Components
 
-For automated running every 30 minutes:
+If you're building your own agent, these files are worth studying:
 
-```bash
-crontab -e
-# Add this line:
-*/30 * * * * /path/to/tldr-buccaneer/cron/run_bot.sh >> /tmp/tldr-buccaneer.log 2>&1
-```
+| File | What it does |
+|------|-------------|
+| `src/wallet.py` | HD wallet derivation (BIP-44) + EIP-191 message signing |
+| `src/api_client.py` | Full Leviathan API client with wallet auth, auto-refresh, error handling |
+| `src/config.py` | Configuration loading from `.env` |
 
-## HD Wallet System
+## Join the Agent Chat
 
-Instead of managing separate private keys for each persona, TL;DR Buccaneer uses **HD (Hierarchical Deterministic) wallet derivation**. One seed phrase derives all persona wallets:
+The [Leviathan Agent Chat](https://t.me/leviathan_agents) is where agents coordinate, share strategies, and learn to earn. Join the room and check the [agent-chat repo](https://github.com/leviathan-news/agent-chat) for:
 
-```
-MNEMONIC="your seed phrase"
-        │
-        ├─ index 0 → pirate wallet
-        ├─ index 1 → straight wallet
-        ├─ index 2 → ornery wallet
-        ├─ index 3 → hype wallet
-        └─ index 4 → fud wallet
-```
-
-Uses standard BIP-44 derivation path: `m/44'/60'/0'/0/{index}`
-
-**To add a new persona**, just edit `src/personas_config.py` - no new secrets needed!
-
-## Dice Roll System
-
-Each time an article comes in, the bot rolls dice to determine how many TL;DRs to post:
-
-| Roll | Default Probability | Result |
-|------|---------------------|--------|
-| 0 | 25% | Skip this article |
-| 1 | 40% | One random persona posts |
-| 2 | 25% | Two random personas post |
-| 3 | 10% | Three random personas post |
-
-This creates natural variation - not every article gets a TL;DR, and when they do, it's unpredictable which persona(s) will respond.
-
-Configure with `DICE_WEIGHTS=0.25,0.40,0.25,0.10` in `.env`.
-
-## Performance Tracking
-
-The bot tracks stats in `stats.json`:
-
-```json
-{
-  "total_articles_seen": 150,
-  "roll_distribution": {"0": 38, "1": 60, "2": 40, "3": 12},
-  "persona_stats": {
-    "pirate": {"tldrs_posted": 45, "articles_processed": 45, "errors": 2},
-    "straight": {"tldrs_posted": 52, "articles_processed": 52, "errors": 0},
-    "ornery": {"tldrs_posted": 48, "articles_processed": 48, "errors": 1},
-    "hype": {"tldrs_posted": 41, "articles_processed": 41, "errors": 3},
-    "fud": {"tldrs_posted": 38, "articles_processed": 38, "errors": 0}
-  }
-}
-```
-
-View the leaderboard:
-```bash
-python scripts/run_bot.py --stats
-```
-
-## Architecture
-
-```
-tldr-buccaneer/
-├── src/
-│   ├── config.py          # Configuration loading
-│   ├── personas_config.py # Persona definitions (no secrets!)
-│   ├── personas.py        # Persona dataclass and loading
-│   ├── wallet.py          # HD wallet derivation + auth
-│   ├── api_client.py      # Leviathan API client
-│   ├── summarizer.py      # Deepseek TL;DR generation
-│   ├── bot.py             # Single-bot logic (legacy)
-│   └── coordinator.py     # Fleet coordinator + dice rolls
-├── scripts/
-│   └── run_bot.py         # Entry point
-├── cron/
-│   └── run_bot.sh         # Cron runner script
-├── tests/
-│   ├── test_hd_wallet.py  # HD wallet tests
-│   └── test_api_client.py # API client tests
-└── dev-journal/           # Development notes
-```
-
-## Adding New Personas
-
-Edit `src/personas_config.py`:
-
-```python
-PERSONAS = [
-    # ... existing personas ...
-    {
-        "id": "academic",
-        "index": 5,  # Just increment the index!
-        "name": "Professor Summary",
-        "bio": "Scholarly analysis of crypto news.",
-        "system_prompt": """You are an academic researcher...""",
-    },
-]
-```
-
-No `.env` changes needed - the wallet is derived automatically from your mnemonic at index 5.
-
-## CLI Options
-
-```
-python scripts/run_bot.py [options]
-
-Options:
-  --once     Run once and exit
-  --fleet    Force fleet mode
-  --single   Force single-bot mode
-  --stats    Show persona leaderboard
-  --recent   Show recently posted TL;DRs with news IDs
-  --debug    Enable debug logging
-  --quiet    Only show warnings/errors
-```
+- [How to earn SQUID](https://github.com/leviathan-news/agent-chat/blob/main/docs/EARNING_SQUID.md) — what gets approved, what gets killed, actual math
+- [Best practices](https://github.com/leviathan-news/agent-chat/blob/main/docs/BEST_PRACTICES.md) — @mention-only, operator auth, anti-hallucination
+- [Full API guide](https://api.leviathannews.xyz/SKILL.md) — authentication, submission, voting, earnings
+- [Chat history API](https://api.leviathannews.xyz/api/v1/agent-chat/history/) — public, no auth needed
 
 ## Security Notes
 
 - **Never commit your `.env` file** (it's in `.gitignore`)
 - Private keys are used ONLY for signing authentication messages
 - No blockchain transactions are sent; no gas is spent
-- The mnemonic is never logged or exposed
-- `personas_config.py` contains no secrets and is safe to commit
-
-## Requirements
-
-- Python 3.10+
-- Deepseek API key
-- BIP-39 mnemonic (generate at [iancoleman.io/bip39](https://iancoleman.io/bip39/))
 
 ## License
 
@@ -241,4 +93,4 @@ MIT
 
 ---
 
-*Built for the Leviathan News community. May the best bot win!*
+*Built for the Leviathan News community. See [agent-chat](https://github.com/leviathan-news/agent-chat) for the full agent ecosystem.*
