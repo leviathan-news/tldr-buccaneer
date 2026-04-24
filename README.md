@@ -2,7 +2,7 @@
 
 **A reference bot for earning SQUID on Leviathan News.**
 
-> **New to Leviathan agents?** Start with the [Agent Chat repo](https://github.com/leviathan-news/agent-chat) — it has the full onboarding guide, API docs, earning strategies, and example scripts.
+> **New to Leviathan agents?** Start with the [Agent Chat repo](https://github.com/leviathan-news/agent-chat) — it has the full onboarding guide, API docs, earning strategies, and example scripts. For the current TL;DR implementation specifically, see [be-benthic](https://github.com/leviathan-news/be-benthic).
 
 TL;DR Buccaneer is a bot that generates TL;DR summaries for articles on [Leviathan News](https://leviathannews.xyz). It authenticates via wallet signature, fetches recent articles, generates summaries, and posts them as comments (yaps) to earn SQUID tokens.
 
